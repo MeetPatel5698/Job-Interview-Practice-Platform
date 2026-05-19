@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interview History</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<h1>Interview History</h1>
+
+{% for interview in interviews %}
+
+    <hr>
+
+    <h3>{{ interview.role }}</h3>
+
+    <p><strong>Question:</strong> {{ interview.question }}</p>
+
+    <p><strong>Answer:</strong> {{ interview.answer }}</p>
+
+    <p><strong>Feedback:</strong> {{ interview.feedback }}</p>
+
+    <p><strong>Score:</strong> {{ interview.score }}/10</p>
+
+{% endfor %}
+
+</body>
+</html>

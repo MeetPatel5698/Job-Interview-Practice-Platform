@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interview</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<h1>Mock Interview</h1>
+
+<form method="POST">
+
+    <label>Select Role</label>
+
+    <select name="role">
+
+        <option>Software Developer</option>
+        <option>Web Developer</option>
+        <option>Data Analyst</option>
+
+    </select>
+
+    <br><br>
+
+    <h3>Question:</h3>
+
+    <p>Tell me about yourself</p>
+
+    <textarea name="answer" rows="8" cols="50"></textarea>
+
+    <br><br>
+
+    <button type="submit">Submit Answer</button>
+
+</form>
+
+</body>
+</html>
