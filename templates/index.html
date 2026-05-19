@@ -1,16 +1,54 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>PrepBot</title>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
 </head>
+
 <body>
 
-    <h1>Welcome to PrepBot</h1>
+    <div class="home-container">
 
-    <a href="/signup">Signup</a>
-    <a href="/login">Login</a>
+        <h1>Welcome to PrepBot</h1>
+
+        <p class="subtitle">
+            AI-Powered Interview Practice Platform
+        </p>
+
+        <div class="card">
+
+            <h2>New User?</h2>
+
+            <p>Create an account to start practicing interviews.</p>
+
+            <a href="/signup">
+                <button>Sign Up</button>
+            </a>
+
+        </div>
+
+        <div class="card">
+
+            <h2>Already have an account?</h2>
+
+            <p>Login and continue your interview practice.</p>
+
+            <a href="/login">
+                <button>Login</button>
+            </a>
+
+        </div>
+
+    </div>
 
 </body>
+
 </html>
