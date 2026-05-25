@@ -1,19 +1,41 @@
 <!DOCTYPE html>
 <html>
+
 <head>
+
     <title>Dashboard</title>
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='css/style.css') }}">
+
 </head>
+
 <body>
 
-<h1>User Dashboard</h1>
+<div class="container">
 
-<a href="/interview">Start Interview</a>
+    <h1>Dashboard</h1>
 
-<br><br>
+    <h3>Welcome, {{ user.full_name }}</h3>
 
-<a href="/history">View History</a>
+    <a href="/interview">
+        <button>Start Interview</button>
+    </a>
+
+    <br><br>
+
+    <a href="/history">
+        <button>View History</button>
+    </a>
+
+    <br><br>
+
+    <a href="/logout">
+        <button>Logout</button>
+    </a>
+
+</div>
 
 </body>
+
 </html>
