@@ -8,29 +8,75 @@
 
 <h1>Mock Interview</h1>
 
-<form method="POST">
+<form method="POST" class="container interview-form">
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <p class="flash-message">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
     <label>Select Role</label>
 
     <select name="role">
 
-        <option>Software Developer</option>
-        <option>Web Developer</option>
-        <option>Data Analyst</option>
+        {% for role in roles %}
+            <option value="{{ role }}" {% if role == selected_role %}selected{% endif %}>
+                {{ role }}
+            </option>
+        {% endfor %}
 
     </select>
 
-    <br><br>
+    <label>Role Description</label>
 
-    <h3>Question:</h3>
+    <textarea name="role_description" rows="6" placeholder="Paste the job description or role requirements here">{{ role_description }}</textarea>
 
-    <p>Tell me about yourself</p>
+    <input type="hidden" name="question_number" value="{{ question_number }}">
 
-    <textarea name="answer" rows="8" cols="50"></textarea>
+    {% if question %}
+        <input type="hidden" name="question" value="{{ question }}">
+    {% endif %}
 
-    <br><br>
+    <button type="submit" name="action" value="generate_question" class="secondary-button">
+        {% if question %}Generate Next Question{% else %}Generate AI Question{% endif %}
+    </button>
 
-    <button type="submit">Submit Answer</button>
+    {% if question %}
+
+        <h3>Question</h3>
+
+        <p class="question-box">{{ question }}</p>
+
+        <label>Your Answer</label>
+
+        <textarea name="answer" rows="8">{{ answer }}</textarea>
+
+        <button type="submit" name="action" value="submit_answer">
+            Submit Answer
+        </button>
+
+    {% endif %}
+
+    {% if feedback %}
+
+        <div class="result-box">
+            <h3>Evaluation</h3>
+
+            <p><strong>Score:</strong> {{ score }}/10</p>
+
+            <p><strong>Feedback:</strong> {{ feedback }}</p>
+
+            <p><strong>Improvements:</strong> {{ improvements }}</p>
+
+            <button type="submit" name="action" value="generate_question" class="next-question-button">
+                Generate Next Question
+            </button>
+        </div>
+
+    {% endif %}
 
 </form>
 

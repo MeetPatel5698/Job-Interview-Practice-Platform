@@ -1,0 +1,406 @@
+import json
+import os
+import re
+from typing import Any
+
+from openai import OpenAI, OpenAIError
+
+
+DEFAULT_MODEL = "gpt-5.4-mini"
+
+ROLE_QUESTION_BANK = {
+    "Software Developer": [
+        "Describe a project where you had to debug a difficult issue. What was your process and what did you learn?",
+        "How do you decide between writing a quick solution and taking time to design a more maintainable one?",
+        "Tell me about a time you worked with version control on a team project. How did you handle conflicts or changes?",
+    ],
+    "Web Developer": [
+        "Walk me through how you would build a responsive web page from a design mockup.",
+        "How would you improve the performance of a slow-loading web page?",
+        "Describe how you handle form validation and error messages in a web application.",
+    ],
+    "Data Analyst": [
+        "Tell me about a time you found an insight in data and explained it to a non-technical audience.",
+        "How would you clean and validate a dataset before creating a report?",
+        "Describe a dashboard or report you would build to help a team make better decisions.",
+    ],
+}
+
+GENERIC_QUESTIONS = [
+    "Tell me about a recent project that demonstrates your skills for this role.",
+    "Describe a challenge you faced in a team setting and how you handled it.",
+    "What strengths would you bring to this position, and where are you still improving?",
+]
+
+EVALUATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "feedback": {
+            "type": "string",
+            "description": "Clear interview coaching feedback in 3 to 5 sentences.",
+        },
+        "improvements": {
+            "type": "string",
+            "description": "Specific improvement advice in 2 to 4 sentences.",
+        },
+        "score": {
+            "type": "integer",
+            "description": "Whole-number interview answer score from 1 to 10.",
+        },
+    },
+    "required": ["feedback", "improvements", "score"],
+    "additionalProperties": False,
+}
+
+QUESTION_SET_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "questions": {
+            "type": "array",
+            "description": "Mock interview questions tailored to the role and job description.",
+            "items": {
+                "type": "string",
+            },
+        },
+    },
+    "required": ["questions"],
+    "additionalProperties": False,
+}
+
+
+def generate_interview_questions(
+    role: str,
+    role_description: str = "",
+    count: int = 5,
+) -> list[str]:
+    role = _clean_role(role)
+    role_description = _clean_text(role_description)
+    count = max(3, min(8, int(count)))
+    client = _get_client()
+
+    if client is None:
+        return fallback_questions(role, role_description, count)
+
+    try:
+        response = client.responses.create(
+            model=_model_name(),
+            instructions=(
+                "You are PrepBot, a practical mock interview coach. "
+                "Generate realistic interview practice questions for students and junior candidates. "
+                "Use the role description to make the questions job-related instead of generic."
+            ),
+            input=(
+                f"Role: {role}\n"
+                f"Role description: {role_description or 'No extra description provided.'}\n\n"
+                f"Generate exactly {count} concise mock interview questions. "
+                "Mix technical, behavioral, and scenario-based questions. "
+                "Each question should be answerable in 2 to 4 minutes and should connect to the role description."
+            ),
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "interview_questions",
+                    "schema": QUESTION_SET_SCHEMA,
+                    "strict": True,
+                }
+            },
+            max_output_tokens=700,
+            temperature=0.7,
+        )
+
+        result = json.loads(response.output_text)
+        questions = _normalize_questions(result.get("questions"), count)
+        if questions:
+            return questions
+    except (OpenAIError, json.JSONDecodeError, TypeError, ValueError):
+        pass
+
+    return fallback_questions(role, role_description, count)
+
+
+def generate_interview_question(
+    role: str,
+    role_description: str = "",
+    question_number: int = 0,
+) -> str:
+    role = _clean_role(role)
+    role_description = _clean_text(role_description)
+    question_number = max(0, int(question_number))
+    client = _get_client()
+
+    if client is None:
+        return fallback_question(role, role_description, question_number)
+
+    try:
+        response = client.responses.create(
+            model=_model_name(),
+            instructions=(
+                "You are PrepBot, a practical mock interview coach. "
+                "Generate one realistic interview question at a time for a student or junior candidate. "
+                "Use the role description to make the question job-related instead of generic."
+            ),
+            input=(
+                f"Role: {role}\n"
+                f"Role description: {role_description or 'No extra description provided.'}\n"
+                f"Question number in this mock interview: {question_number + 1}\n\n"
+                "Generate exactly one concise mock interview question. "
+                "Do not include numbering, explanations, or answer hints. "
+                "Make the question answerable in 2 to 4 minutes."
+            ),
+            max_output_tokens=140,
+            temperature=0.7,
+        )
+
+        question = _clean_text(response.output_text)
+        if question:
+            return question
+    except (OpenAIError, ValueError):
+        pass
+
+    return fallback_question(role, role_description, question_number)
+
+
+def evaluate_interview_answer(
+    role: str,
+    question: str,
+    answer: str,
+    role_description: str = "",
+) -> tuple[str, int, str]:
+    role = _clean_role(role)
+    question = _clean_text(question) or fallback_question(role)
+    answer = _clean_text(answer)
+    role_description = _clean_text(role_description)
+
+    if not answer:
+        return (
+            "Please provide an answer before requesting feedback. A strong response should include a clear example, your actions, and the result.",
+            1,
+            "Write at least a short answer that includes what happened, what you did, and what changed because of your work.",
+        )
+
+    client = _get_client()
+    if client is None:
+        return fallback_evaluation(role, question, answer, role_description)
+
+    try:
+        response = client.responses.create(
+            model=_model_name(),
+            instructions=(
+                "You are PrepBot, an interview coach. Evaluate answers fairly for junior candidates. "
+                "Be specific, constructive, and concise. Do not invent experience the candidate did not mention."
+            ),
+            input=(
+                f"Role: {role}\n"
+                f"Role description: {role_description or 'No extra description provided.'}\n"
+                f"Interview question: {question}\n"
+                f"Candidate answer: {answer}\n\n"
+                "Return feedback, improvements, and a score from 1 to 10. Reward clear examples, role-specific detail, "
+                "structured communication, concrete results, and direct connection to the role description. "
+                "Penalize vague, incomplete, or off-topic answers."
+            ),
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "interview_evaluation",
+                    "schema": EVALUATION_SCHEMA,
+                    "strict": True,
+                }
+            },
+            max_output_tokens=500,
+            temperature=0.2,
+        )
+
+        result = json.loads(response.output_text)
+        return _normalize_evaluation(result)
+    except (OpenAIError, json.JSONDecodeError, TypeError, ValueError):
+        return fallback_evaluation(role, question, answer, role_description)
+
+
+def fallback_question(
+    role: str,
+    role_description: str = "",
+    question_number: int = 0,
+) -> str:
+    questions = fallback_questions(role, role_description, count=8)
+    index = max(0, int(question_number)) % len(questions)
+    return questions[index]
+
+
+def fallback_questions(
+    role: str,
+    role_description: str = "",
+    count: int = 5,
+) -> list[str]:
+    role = _clean_role(role)
+    role_description = _clean_text(role_description)
+    questions = list(ROLE_QUESTION_BANK.get(role, GENERIC_QUESTIONS))
+
+    for term in _extract_focus_terms(role_description):
+        questions.append(
+            f"How have you used {term} in a project or work situation, and what result did you achieve?"
+        )
+        questions.append(
+            f"If this {role} position required {term}, how would you approach that responsibility in your first month?"
+        )
+
+    questions.append(
+        f"Based on this role description, which requirement best matches your experience as a {role}, and why?"
+    )
+    questions.append(
+        f"What skill from the role description would you need to strengthen, and how are you working on it?"
+    )
+
+    unique_questions = []
+    for question in questions:
+        if question not in unique_questions:
+            unique_questions.append(question)
+
+    return unique_questions[:count]
+
+
+def fallback_evaluation(
+    role: str,
+    question: str,
+    answer: str,
+    role_description: str = "",
+) -> tuple[str, int, str]:
+    del question
+
+    words = answer.split()
+    word_count = len(words)
+    lower_answer = answer.lower()
+    focus_terms = _extract_focus_terms(role_description)
+    score = 4
+
+    if word_count >= 80:
+        score += 3
+    elif word_count >= 40:
+        score += 2
+    elif word_count >= 20:
+        score += 1
+
+    if any(term in lower_answer for term in ["example", "project", "result", "impact", "learned"]):
+        score += 1
+
+    if any(term in lower_answer for term in ["team", "user", "client", "customer", "stakeholder"]):
+        score += 1
+
+    if role.lower().split()[0] in lower_answer:
+        score += 1
+
+    if any(term.lower() in lower_answer for term in focus_terms):
+        score += 1
+
+    score = _clamp_score(score)
+
+    feedback = (
+        "Your answer gives PrepBot enough information to evaluate the basic direction of your response. "
+        f"For a {role} interview, connect your example more directly to the skills the role uses every day."
+    )
+
+    improvements = (
+        "Use a clearer structure: situation, task, action, and result. "
+        "Add one concrete technical or workplace detail from the role description, then finish with what improved because of your work."
+    )
+
+    return feedback, score, improvements
+
+
+def _get_client() -> OpenAI | None:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+
+    return OpenAI(api_key=api_key)
+
+
+def _model_name() -> str:
+    return os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
+
+
+def _clean_role(role: str) -> str:
+    return _clean_text(role) or "Software Developer"
+
+
+def _clean_text(value: Any) -> str:
+    if value is None:
+        return ""
+
+    text = str(value).strip()
+    if text.startswith('"') and text.endswith('"'):
+        text = text[1:-1].strip()
+
+    return text
+
+
+def _normalize_evaluation(result: dict[str, Any]) -> tuple[str, int, str]:
+    feedback = _clean_text(result.get("feedback"))
+    improvements = _clean_text(result.get("improvements"))
+    score = _clamp_score(result.get("score", 1))
+
+    if not feedback:
+        feedback = "Your answer was evaluated, but the feedback response was empty. Try adding a clearer example and role-specific details."
+
+    if not improvements:
+        improvements = "Add a specific example, explain your personal actions, and connect the result back to the role description."
+
+    return feedback, score, improvements
+
+
+def _normalize_questions(value: Any, count: int) -> list[str]:
+    if not isinstance(value, list):
+        return []
+
+    questions = []
+    for item in value:
+        question = _clean_text(item)
+        if question and question not in questions:
+            questions.append(question)
+
+    return questions[:count]
+
+
+def _extract_focus_terms(role_description: str) -> list[str]:
+    stop_words = {
+        "about",
+        "ability",
+        "applications",
+        "build",
+        "candidate",
+        "description",
+        "develop",
+        "experience",
+        "familiar",
+        "knowledge",
+        "preferred",
+        "required",
+        "responsibilities",
+        "responsibility",
+        "skills",
+        "strong",
+        "team",
+        "using",
+        "with",
+        "work",
+        "working",
+    }
+
+    terms = []
+    for term in re.findall(r"[A-Za-z][A-Za-z0-9+#.-]{2,}", role_description):
+        normalized = term.strip(".,;:()[]{}")
+        if normalized.lower() in stop_words:
+            continue
+
+        if normalized not in terms:
+            terms.append(normalized)
+
+    return terms[:4]
+
+
+def _clamp_score(value: Any) -> int:
+    try:
+        score = int(value)
+    except (TypeError, ValueError):
+        score = 1
+
+    return max(1, min(10, score))

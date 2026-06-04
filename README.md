@@ -112,11 +112,28 @@ These tables help manage:
 # AI Integration
 
 PrepBot uses AI services to:
-- Generate interview questions dynamically
+- Generate one interview question at a time from the selected role and role description
 - Analyze user responses
 - Provide interview feedback
 - Suggest improvements
 - Generate interview scores
+
+## OpenAI Setup
+
+Set your API key before running the app:
+
+```powershell
+$env:OPENAI_API_KEY="your_api_key_here"
+python app.py
+```
+
+Optional model override:
+
+```powershell
+$env:OPENAI_MODEL="gpt-5.4-mini"
+```
+
+If `OPENAI_API_KEY` is not set, PrepBot uses local fallback questions and basic feedback so the user flow can still be tested.
 
 ---
 

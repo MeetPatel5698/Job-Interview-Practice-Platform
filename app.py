@@ -8,7 +8,13 @@ from flask_login import (
     logout_user,
     current_user
 )
+from sqlalchemy import text
 from werkzeug.security import generate_password_hash, check_password_hash
+
+from services.ai_services import (
+    evaluate_interview_answer,
+    generate_interview_question
+)
 
 app = Flask(__name__)
 
@@ -20,6 +26,12 @@ app.config['SECRET_KEY'] = 'prepbot_secret_key'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
 
 db = SQLAlchemy(app)
+
+ROLE_OPTIONS = [
+    'Software Developer',
+    'Web Developer',
+    'Data Analyst'
+]
 
 # =========================
 # LOGIN MANAGER
@@ -72,6 +84,29 @@ class Interview(db.Model):
         db.Integer,
         db.ForeignKey('user.id')
     )
+
+# =========================
+# DATABASE SCHEMA CHECK
+# =========================
+
+def ensure_database_schema():
+
+    db.create_all()
+
+    interview_columns = {
+        column[1]
+        for column in db.session.execute(
+            text('PRAGMA table_info(interview)')
+        ).fetchall()
+    }
+
+    if 'user_id' not in interview_columns:
+
+        db.session.execute(
+            text('ALTER TABLE interview ADD COLUMN user_id INTEGER')
+        )
+
+        db.session.commit()
 
 # =========================
 # USER LOADER
@@ -189,24 +224,131 @@ def dashboard():
 @login_required
 def interview():
 
+    selected_role = request.form.get(
+        'role',
+        ROLE_OPTIONS[0]
+    )
+
+    role_description = request.form.get(
+        'role_description',
+        ''
+    )
+
+    question = request.form.get(
+        'question',
+        ''
+    )
+
+    question_number = request.form.get(
+        'question_number',
+        '0'
+    )
+
+    answer = request.form.get(
+        'answer',
+        ''
+    )
+
+    feedback = None
+    score = None
+    improvements = None
+
+    try:
+        question_number = int(question_number)
+    except ValueError:
+        question_number = 0
+
     if request.method == 'POST':
 
-        role = request.form['role']
+        action = request.form.get('action')
 
-        answer = request.form['answer']
+        if action in ('generate_question', 'generate_questions'):
 
-        feedback = (
-            "Good answer. "
-            "Try adding more technical details."
+            role_description = role_description.strip()
+
+            if not role_description:
+
+                flash('Please add a role description before generating a question')
+
+            else:
+
+                if question.strip():
+
+                    question_number += 1
+
+                question = generate_interview_question(
+                    selected_role,
+                    role_description,
+                    question_number
+                )
+
+            return render_template(
+                'interview.html',
+                roles=ROLE_OPTIONS,
+                selected_role=selected_role,
+                role_description=role_description,
+                question=question,
+                question_number=question_number,
+                answer='',
+                feedback=feedback,
+                score=score,
+                improvements=improvements
+            )
+
+        question = question.strip()
+        answer = answer.strip()
+
+        if not question:
+
+            flash('Please generate a question before submitting')
+
+            return render_template(
+                'interview.html',
+                roles=ROLE_OPTIONS,
+                selected_role=selected_role,
+                role_description=role_description,
+                question=question,
+                question_number=question_number,
+                answer=answer,
+                feedback=feedback,
+                score=score,
+                improvements=improvements
+            )
+
+        if not answer:
+
+            flash('Please enter an answer before submitting')
+
+            return render_template(
+                'interview.html',
+                roles=ROLE_OPTIONS,
+                selected_role=selected_role,
+                role_description=role_description,
+                question=question,
+                question_number=question_number,
+                answer=answer,
+                feedback=feedback,
+                score=score,
+                improvements=improvements
+            )
+
+        feedback, score, improvements = evaluate_interview_answer(
+            selected_role,
+            question,
+            answer,
+            role_description
         )
 
-        score = 8
+        stored_feedback = (
+            f"{feedback}\n\n"
+            f"Improvements: {improvements}"
+        )
 
         new_interview = Interview(
-            role=role,
-            question="Tell me about yourself",
+            role=selected_role,
+            question=question,
             answer=answer,
-            feedback=feedback,
+            feedback=stored_feedback,
             score=score,
             user_id=current_user.id
         )
@@ -215,11 +357,33 @@ def interview():
 
         db.session.commit()
 
-        flash('Interview submitted successfully')
+        flash('Answer evaluated and saved')
 
-        return redirect(url_for('history'))
+        return render_template(
+            'interview.html',
+            roles=ROLE_OPTIONS,
+            selected_role=selected_role,
+            role_description=role_description,
+            question=question,
+            question_number=question_number,
+            answer=answer,
+            feedback=feedback,
+            score=score,
+            improvements=improvements
+        )
 
-    return render_template('interview.html')
+    return render_template(
+        'interview.html',
+        roles=ROLE_OPTIONS,
+        selected_role=selected_role,
+        role_description=role_description,
+        question=question,
+        question_number=question_number,
+        answer=answer,
+        feedback=feedback,
+        score=score,
+        improvements=improvements
+    )
 
 # =========================
 # HISTORY
@@ -260,6 +424,6 @@ if __name__ == '__main__':
 
     with app.app_context():
 
-        db.create_all()
+        ensure_database_schema()
 
     app.run(debug=True)
