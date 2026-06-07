@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mock Interview</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<form method="POST" class="page-panel interview-form">
+
+    <div class="page-header">
+        <div>
+            <p class="eyebrow">PrepBot Session</p>
+            <h1>Mock Interview</h1>
+        </div>
+
+        <button type="submit" name="action" value="save_exit" class="ghost-button">
+            Save & Dashboard
+        </button>
+    </div>
+
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <p class="flash-message">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if saved_progress %}
+        <p class="save-status">Saved progress is active for this session.</p>
+    {% endif %}
+
+    <div class="session-summary">
+        <div>
+            <span class="summary-label">Role</span>
+            <strong>{{ selected_role }}</strong>
+        </div>
+
+        <div>
+            <span class="summary-label">Resume</span>
+            <strong>{% if resume_text %}Added{% else %}Not added{% endif %}</strong>
+        </div>
+
+        <div>
+            <span class="summary-label">Progress</span>
+            <strong>{{ question_number + 1 }} of {{ total_questions }}</strong>
+        </div>
+
+        <a href="/interview" class="text-button">Edit Setup</a>
+    </div>
+
+    <input type="hidden" name="role" value="{{ selected_role }}">
+    <input type="hidden" name="role_description" value="{{ role_description }}">
+    <input type="hidden" name="resume_text" value="{{ resume_text }}">
+    <input type="hidden" name="resume_filename" value="{{ resume_filename }}">
+    <input type="hidden" name="question_number" value="{{ question_number }}">
+    <input type="hidden" name="question" value="{{ question }}">
+
+    <div class="form-section">
+        <h2>Question {{ question_number + 1 }} of {{ total_questions }}</h2>
+
+        <p class="question-box">{{ question }}</p>
+
+        <label>Your Answer</label>
+
+        <textarea name="answer" rows="9" placeholder="Type your answer here">{{ answer }}</textarea>
+
+        <button type="submit" name="action" value="submit_answer">
+            Submit Answer
+        </button>
+    </div>
+
+</form>
+
+</body>
+</html>

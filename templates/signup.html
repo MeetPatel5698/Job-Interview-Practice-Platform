@@ -10,6 +10,14 @@
 
 <form method="POST">
 
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <p class="flash-message">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
     <input type="text" name="full_name" placeholder="Full Name" required>
 
     <input type="email" name="email" placeholder="Email" required>

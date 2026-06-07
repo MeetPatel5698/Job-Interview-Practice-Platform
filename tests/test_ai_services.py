@@ -6,6 +6,7 @@ from services.ai_services import (
     evaluate_interview_answer,
     generate_interview_question,
     generate_interview_questions,
+    summarize_interview_session,
 )
 
 
@@ -79,6 +80,26 @@ class AIServiceFallbackTests(unittest.TestCase):
         self.assertIn("provide an answer", feedback)
         self.assertIn("Write", improvements)
         self.assertEqual(score, 1)
+
+    def test_session_summary_returns_strengths_weaknesses_and_improvements(self):
+        strengths, weaknesses, improvements = summarize_interview_session(
+            "Software Developer",
+            "Build Flask APIs with SQL databases.",
+            "Built a Flask project with SQLite.",
+            [
+                {
+                    "question": "How did you debug a difficult issue?",
+                    "answer": "I checked logs and fixed a SQL query.",
+                    "score": 7,
+                    "feedback": "Good practical example.",
+                    "improvements": "Add measurable impact.",
+                }
+            ],
+        )
+
+        self.assertGreater(len(strengths), 20)
+        self.assertGreater(len(weaknesses), 20)
+        self.assertGreater(len(improvements), 20)
 
 
 if __name__ == "__main__":

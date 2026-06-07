@@ -7,23 +7,38 @@
 </head>
 <body>
 
-<h1>Interview History</h1>
+<div class="page-panel history-panel">
 
-{% for interview in interviews %}
+    <div class="page-header">
+        <div>
+            <p class="eyebrow">PrepBot</p>
+            <h1>Interview History</h1>
+        </div>
 
-    <hr>
+        <a href="/dashboard" class="text-button">Dashboard</a>
+    </div>
 
-    <h3>{{ interview.role }}</h3>
+    {% for interview in interviews %}
 
-    <p><strong>Question:</strong> {{ interview.question }}</p>
+        <div class="history-item">
+            <h3>{{ interview.role }}</h3>
 
-    <p><strong>Answer:</strong> {{ interview.answer }}</p>
+            <p><strong>Question:</strong> {{ interview.question }}</p>
 
-    <p><strong>Feedback:</strong> {{ interview.feedback }}</p>
+            <p><strong>Answer:</strong> {{ interview.answer }}</p>
 
-    <p><strong>Score:</strong> {{ interview.score }}/10</p>
+            <p><strong>Feedback:</strong> {{ interview.feedback }}</p>
 
-{% endfor %}
+            <p><strong>Score:</strong> {{ interview.score }}/10</p>
+        </div>
+
+    {% else %}
+
+        <p class="muted-text">No interview answers saved yet.</p>
+
+    {% endfor %}
+
+</div>
 
 </body>
 </html>

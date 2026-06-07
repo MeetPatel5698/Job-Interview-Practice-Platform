@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interview Results</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<div class="page-panel results-panel">
+
+    <div class="page-header">
+        <div>
+            <p class="eyebrow">PrepBot Results</p>
+            <h1>Interview Complete</h1>
+        </div>
+
+        <a href="/dashboard" class="text-button">Exit to Dashboard</a>
+    </div>
+
+    <div class="score-summary">
+        <div>
+            <span class="summary-label">Role</span>
+            <strong>{{ draft.role }}</strong>
+        </div>
+
+        <div>
+            <span class="summary-label">Questions</span>
+            <strong>{{ answers|length }}</strong>
+        </div>
+
+        <div>
+            <span class="summary-label">Average Score</span>
+            <strong>{{ average_score }}/10</strong>
+        </div>
+    </div>
+
+    <div class="results-grid">
+        <div class="result-card">
+            <h2>Strengths</h2>
+            <p>{{ strengths }}</p>
+        </div>
+
+        <div class="result-card">
+            <h2>Weaknesses</h2>
+            <p>{{ weaknesses }}</p>
+        </div>
+
+        <div class="result-card">
+            <h2>Improvements</h2>
+            <p>{{ improvements }}</p>
+        </div>
+    </div>
+
+    <h2>Question Scores</h2>
+
+    {% for answer in answers %}
+        <div class="history-item">
+            <div class="question-score-row">
+                <h3>Question {{ loop.index }}</h3>
+                <span class="score-pill">{{ answer.score }}/10</span>
+            </div>
+
+            <p><strong>Question:</strong> {{ answer.question }}</p>
+
+            <p><strong>Your Answer:</strong> {{ answer.answer }}</p>
+
+            <p><strong>Feedback:</strong> {{ answer.feedback }}</p>
+
+            {% if answer.improvements %}
+                <p><strong>Improve:</strong> {{ answer.improvements }}</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+
+    <div class="dashboard-actions">
+        <a href="/dashboard" class="button-link">
+            Exit to Dashboard
+        </a>
+
+        <a href="/interview?new=1" class="button-link secondary-link">
+            Start New Interview
+        </a>
+    </div>
+
+</div>
+
+</body>
+</html>

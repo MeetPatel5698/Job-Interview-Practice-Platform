@@ -67,6 +67,26 @@ QUESTION_SET_SCHEMA = {
     "additionalProperties": False,
 }
 
+SESSION_SUMMARY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "strengths": {
+            "type": "string",
+            "description": "Main strengths shown across the interview session.",
+        },
+        "weaknesses": {
+            "type": "string",
+            "description": "Main weaknesses or gaps shown across the interview session.",
+        },
+        "improvements": {
+            "type": "string",
+            "description": "Practical improvement advice for future interviews.",
+        },
+    },
+    "required": ["strengths", "weaknesses", "improvements"],
+    "additionalProperties": False,
+}
+
 
 def generate_interview_questions(
     role: str,
@@ -122,14 +142,16 @@ def generate_interview_question(
     role: str,
     role_description: str = "",
     question_number: int = 0,
+    resume_text: str = "",
 ) -> str:
     role = _clean_role(role)
     role_description = _clean_text(role_description)
+    resume_text = _clean_text(resume_text)
     question_number = max(0, int(question_number))
     client = _get_client()
 
     if client is None:
-        return fallback_question(role, role_description, question_number)
+        return fallback_question(role, role_description, question_number, resume_text)
 
     try:
         response = client.responses.create(
@@ -142,8 +164,10 @@ def generate_interview_question(
             input=(
                 f"Role: {role}\n"
                 f"Role description: {role_description or 'No extra description provided.'}\n"
+                f"Candidate resume/context: {_shorten_context(resume_text)}\n"
                 f"Question number in this mock interview: {question_number + 1}\n\n"
                 "Generate exactly one concise mock interview question. "
+                "If resume context is available, ask a question that helps the candidate connect their real experience to the role. "
                 "Do not include numbering, explanations, or answer hints. "
                 "Make the question answerable in 2 to 4 minutes."
             ),
@@ -157,7 +181,7 @@ def generate_interview_question(
     except (OpenAIError, ValueError):
         pass
 
-    return fallback_question(role, role_description, question_number)
+    return fallback_question(role, role_description, question_number, resume_text)
 
 
 def evaluate_interview_answer(
@@ -165,11 +189,13 @@ def evaluate_interview_answer(
     question: str,
     answer: str,
     role_description: str = "",
+    resume_text: str = "",
 ) -> tuple[str, int, str]:
     role = _clean_role(role)
     question = _clean_text(question) or fallback_question(role)
     answer = _clean_text(answer)
     role_description = _clean_text(role_description)
+    resume_text = _clean_text(resume_text)
 
     if not answer:
         return (
@@ -180,7 +206,7 @@ def evaluate_interview_answer(
 
     client = _get_client()
     if client is None:
-        return fallback_evaluation(role, question, answer, role_description)
+        return fallback_evaluation(role, question, answer, role_description, resume_text)
 
     try:
         response = client.responses.create(
@@ -192,10 +218,12 @@ def evaluate_interview_answer(
             input=(
                 f"Role: {role}\n"
                 f"Role description: {role_description or 'No extra description provided.'}\n"
+                f"Candidate resume/context: {_shorten_context(resume_text)}\n"
                 f"Interview question: {question}\n"
                 f"Candidate answer: {answer}\n\n"
                 "Return feedback, improvements, and a score from 1 to 10. Reward clear examples, role-specific detail, "
                 "structured communication, concrete results, and direct connection to the role description. "
+                "If resume context is available, suggest how the candidate can use their real experience more effectively. "
                 "Penalize vague, incomplete, or off-topic answers."
             ),
             text={
@@ -213,15 +241,121 @@ def evaluate_interview_answer(
         result = json.loads(response.output_text)
         return _normalize_evaluation(result)
     except (OpenAIError, json.JSONDecodeError, TypeError, ValueError):
-        return fallback_evaluation(role, question, answer, role_description)
+        return fallback_evaluation(role, question, answer, role_description, resume_text)
+
+
+def generate_answer_suggestion(
+    role: str,
+    role_description: str,
+    question: str,
+    resume_text: str = "",
+) -> str:
+    role = _clean_role(role)
+    role_description = _clean_text(role_description)
+    question = _clean_text(question)
+    resume_text = _clean_text(resume_text)
+    client = _get_client()
+
+    if client is None:
+        return fallback_answer_suggestion(role, role_description, question, resume_text)
+
+    try:
+        response = client.responses.create(
+            model=_model_name(),
+            instructions=(
+                "You are PrepBot, an interview coach. Create a realistic sample answer that helps the candidate learn. "
+                "Base it only on the resume/context provided. Do not invent specific companies, dates, or achievements."
+            ),
+            input=(
+                f"Role: {role}\n"
+                f"Role description: {role_description or 'No extra description provided.'}\n"
+                f"Candidate resume/context: {_shorten_context(resume_text)}\n"
+                f"Interview question: {question}\n\n"
+                "Write a concise sample answer in first person using the candidate's actual experience where possible. "
+                "If resume context is thin, give a safe structure and say what detail the candidate should add."
+            ),
+            max_output_tokens=350,
+            temperature=0.4,
+        )
+
+        suggestion = _clean_text(response.output_text)
+        if suggestion:
+            return suggestion
+    except (OpenAIError, ValueError):
+        pass
+
+    return fallback_answer_suggestion(role, role_description, question, resume_text)
+
+
+def summarize_interview_session(
+    role: str,
+    role_description: str,
+    resume_text: str,
+    answers: list[dict[str, Any]],
+) -> tuple[str, str, str]:
+    role = _clean_role(role)
+    role_description = _clean_text(role_description)
+    resume_text = _clean_text(resume_text)
+    client = _get_client()
+
+    if client is None:
+        return fallback_session_summary(role, answers)
+
+    try:
+        answer_lines = []
+        for index, answer in enumerate(answers, start=1):
+            answer_lines.append(
+                f"Q{index}: {answer.get('question')}\n"
+                f"Answer: {answer.get('answer')}\n"
+                f"Score: {answer.get('score')}/10\n"
+                f"Feedback: {answer.get('feedback')}\n"
+                f"Improvements: {answer.get('improvements')}"
+            )
+
+        response = client.responses.create(
+            model=_model_name(),
+            instructions=(
+                "You are PrepBot, an interview coach. Summarize a completed mock interview for a student or junior candidate. "
+                "Be constructive, specific, and practical."
+            ),
+            input=(
+                f"Role: {role}\n"
+                f"Role description: {role_description or 'No extra description provided.'}\n"
+                f"Candidate resume/context: {_shorten_context(resume_text)}\n\n"
+                "Completed answers:\n"
+                + "\n\n".join(answer_lines)
+                + "\n\nReturn strengths, weaknesses, and improvements for the final results page."
+            ),
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "interview_session_summary",
+                    "schema": SESSION_SUMMARY_SCHEMA,
+                    "strict": True,
+                }
+            },
+            max_output_tokens=600,
+            temperature=0.3,
+        )
+
+        result = json.loads(response.output_text)
+        return _normalize_session_summary(result)
+    except (OpenAIError, json.JSONDecodeError, TypeError, ValueError):
+        return fallback_session_summary(role, answers)
 
 
 def fallback_question(
     role: str,
     role_description: str = "",
     question_number: int = 0,
+    resume_text: str = "",
 ) -> str:
-    questions = fallback_questions(role, role_description, count=8)
+    combined_context = " ".join(
+        value
+        for value in [role_description, resume_text]
+        if value
+    )
+    questions = fallback_questions(role, combined_context, count=8)
     index = max(0, int(question_number)) % len(questions)
     return questions[index]
 
@@ -263,13 +397,16 @@ def fallback_evaluation(
     question: str,
     answer: str,
     role_description: str = "",
+    resume_text: str = "",
 ) -> tuple[str, int, str]:
     del question
 
     words = answer.split()
     word_count = len(words)
     lower_answer = answer.lower()
-    focus_terms = _extract_focus_terms(role_description)
+    focus_terms = _extract_focus_terms(
+        " ".join([role_description, resume_text])
+    )
     score = 4
 
     if word_count >= 80:
@@ -300,10 +437,56 @@ def fallback_evaluation(
 
     improvements = (
         "Use a clearer structure: situation, task, action, and result. "
-        "Add one concrete technical or workplace detail from the role description, then finish with what improved because of your work."
+        "Add one concrete technical or workplace detail from the role description or resume, then finish with what improved because of your work."
     )
 
     return feedback, score, improvements
+
+
+def fallback_answer_suggestion(
+    role: str,
+    role_description: str,
+    question: str,
+    resume_text: str = "",
+) -> str:
+    focus_terms = _extract_focus_terms(
+        " ".join([role_description, resume_text])
+    )
+    detail = focus_terms[0] if focus_terms else "a relevant project or class experience"
+
+    return (
+        f"For this {role} question, start with a real example involving {detail}. "
+        "Use this structure: briefly describe the situation, explain the action you personally took, "
+        "then finish with the result or lesson learned. Add a specific detail from your resume so the answer sounds like your own experience."
+    )
+
+
+def fallback_session_summary(
+    role: str,
+    answers: list[dict[str, Any]],
+) -> tuple[str, str, str]:
+    scores = [
+        int(answer.get("score") or 0)
+        for answer in answers
+    ]
+    average = sum(scores) / len(scores) if scores else 0
+
+    if average >= 8:
+        strengths = f"You showed strong readiness for a {role} interview, especially in answer completeness and role alignment."
+        weaknesses = "The main remaining gap is polishing answers so each one has a clear result or measurable impact."
+    elif average >= 6:
+        strengths = f"You showed a workable foundation for a {role} interview and answered enough to evaluate your thinking."
+        weaknesses = "Several answers need more specific examples, stronger structure, and clearer connection to the job description."
+    else:
+        strengths = "You completed the session and identified what needs practice, which is a useful first step."
+        weaknesses = f"Your answers need more detail, stronger examples, and clearer {role} skills before a real interview."
+
+    improvements = (
+        "Use the STAR structure for every answer: situation, task, action, result. "
+        "Before the next session, prepare two or three resume-based examples that show technical skills, teamwork, and problem solving."
+    )
+
+    return strengths, weaknesses, improvements
 
 
 def _get_client() -> OpenAI | None:
@@ -333,6 +516,14 @@ def _clean_text(value: Any) -> str:
     return text
 
 
+def _shorten_context(value: str, limit: int = 2500) -> str:
+    text = _clean_text(value)
+    if not text:
+        return "No resume/context provided."
+
+    return text[:limit]
+
+
 def _normalize_evaluation(result: dict[str, Any]) -> tuple[str, int, str]:
     feedback = _clean_text(result.get("feedback"))
     improvements = _clean_text(result.get("improvements"))
@@ -345,6 +536,23 @@ def _normalize_evaluation(result: dict[str, Any]) -> tuple[str, int, str]:
         improvements = "Add a specific example, explain your personal actions, and connect the result back to the role description."
 
     return feedback, score, improvements
+
+
+def _normalize_session_summary(result: dict[str, Any]) -> tuple[str, str, str]:
+    strengths = _clean_text(result.get("strengths"))
+    weaknesses = _clean_text(result.get("weaknesses"))
+    improvements = _clean_text(result.get("improvements"))
+
+    if not strengths:
+        strengths = "You completed the mock interview and provided enough answers to review your performance."
+
+    if not weaknesses:
+        weaknesses = "Some answers could use clearer examples, stronger structure, or closer connection to the role."
+
+    if not improvements:
+        improvements = "Practice using the STAR method and include more concrete details from your projects or resume."
+
+    return strengths, weaknesses, improvements
 
 
 def _normalize_questions(value: Any, count: int) -> list[str]:

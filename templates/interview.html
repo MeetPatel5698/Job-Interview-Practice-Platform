@@ -1,14 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Interview</title>
+    <title>Interview Setup</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
 
-<h1>Mock Interview</h1>
+<form method="POST" enctype="multipart/form-data" class="page-panel interview-form">
 
-<form method="POST" class="container interview-form">
+    <div class="page-header">
+        <div>
+            <p class="eyebrow">PrepBot Setup</p>
+            <h1>Prepare Interview</h1>
+        </div>
+
+        <a href="/dashboard" class="text-button">Dashboard</a>
+    </div>
 
     {% with messages = get_flashed_messages() %}
         {% if messages %}
@@ -18,65 +25,78 @@
         {% endif %}
     {% endwith %}
 
-    <label>Select Role</label>
+    {% if active_draft and active_draft.question %}
+        <div class="resume-card">
+            <div>
+                <h2>{% if active_draft.completed %}Completed Session{% else %}Session In Progress{% endif %}</h2>
+                <p class="muted-text">
+                    {% if active_draft.completed %}
+                        Your results are ready to review.
+                    {% else %}
+                        You already have a saved mock interview.
+                    {% endif %}
+                </p>
+            </div>
 
-    <select name="role">
-
-        {% for role in roles %}
-            <option value="{{ role }}" {% if role == selected_role %}selected{% endif %}>
-                {{ role }}
-            </option>
-        {% endfor %}
-
-    </select>
-
-    <label>Role Description</label>
-
-    <textarea name="role_description" rows="6" placeholder="Paste the job description or role requirements here">{{ role_description }}</textarea>
-
-    <input type="hidden" name="question_number" value="{{ question_number }}">
-
-    {% if question %}
-        <input type="hidden" name="question" value="{{ question }}">
-    {% endif %}
-
-    <button type="submit" name="action" value="generate_question" class="secondary-button">
-        {% if question %}Generate Next Question{% else %}Generate AI Question{% endif %}
-    </button>
-
-    {% if question %}
-
-        <h3>Question</h3>
-
-        <p class="question-box">{{ question }}</p>
-
-        <label>Your Answer</label>
-
-        <textarea name="answer" rows="8">{{ answer }}</textarea>
-
-        <button type="submit" name="action" value="submit_answer">
-            Submit Answer
-        </button>
-
-    {% endif %}
-
-    {% if feedback %}
-
-        <div class="result-box">
-            <h3>Evaluation</h3>
-
-            <p><strong>Score:</strong> {{ score }}/10</p>
-
-            <p><strong>Feedback:</strong> {{ feedback }}</p>
-
-            <p><strong>Improvements:</strong> {{ improvements }}</p>
-
-            <button type="submit" name="action" value="generate_question" class="next-question-button">
-                Generate Next Question
-            </button>
+            {% if active_draft.completed %}
+                <a href="/interview-results" class="button-link">View Results</a>
+            {% else %}
+                <a href="/mock-interview" class="button-link">Continue Session</a>
+            {% endif %}
         </div>
-
     {% endif %}
+
+    <div class="form-section">
+        <h2>Job Details</h2>
+
+        <label>Select Role</label>
+
+        <select name="role">
+            {% for role in roles %}
+                <option value="{{ role }}" {% if role == selected_role %}selected{% endif %}>
+                    {{ role }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <label>Role Description</label>
+
+        <textarea name="role_description" rows="7" placeholder="Paste the job posting, responsibilities, or role requirements here">{{ role_description }}</textarea>
+
+        <label>Session Length</label>
+
+        <select name="total_questions">
+            {% for length in session_lengths %}
+                <option value="{{ length }}" {% if length == total_questions %}selected{% endif %}>
+                    {{ length }} questions
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="form-section">
+        <h2>Resume Context</h2>
+
+        <p class="muted-text">
+            Paste your resume text so PrepBot can connect questions and sample answers to your real experience.
+        </p>
+
+        {% if resume_filename %}
+            <p class="save-status">Loaded resume file: {{ resume_filename }}</p>
+        {% endif %}
+
+        <label>Upload Resume Text File</label>
+
+        <input type="file" name="resume_file" accept=".pdf,.txt,.md,.csv">
+
+        <label>Resume Text</label>
+
+        <textarea name="resume_text" rows="9" placeholder="Paste your resume, project summary, or experience notes here">{{ resume_text }}</textarea>
+    </div>
+
+    <button type="submit" class="primary-action-button">
+        Start Mock Interview
+    </button>
 
 </form>
 

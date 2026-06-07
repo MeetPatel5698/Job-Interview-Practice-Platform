@@ -12,27 +12,65 @@
 
 <body>
 
-<div class="container">
+<div class="page-panel dashboard-panel">
 
-    <h1>Dashboard</h1>
+    <div class="page-header">
+        <div>
+            <p class="eyebrow">PrepBot</p>
+            <h1>Dashboard</h1>
+        </div>
 
-    <h3>Welcome, {{ user.full_name }}</h3>
+        <a href="/logout" class="text-button">Logout</a>
+    </div>
 
-    <a href="/interview">
-        <button>Start Interview</button>
-    </a>
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <p class="flash-message">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
-    <br><br>
+    <p class="welcome-text">Welcome, {{ user.full_name }}</p>
 
-    <a href="/history">
-        <button>View History</button>
-    </a>
+    {% if active_draft %}
+        <div class="resume-card">
+            <div>
+                <h2>{% if active_draft.completed %}Completed Interview{% else %}Saved Interview{% endif %}</h2>
+                <p>{{ active_draft.role or 'Interview session' }}</p>
+                <p class="muted-text">
+                    {% if active_draft.completed %}
+                        Results ready
+                    {% else %}
+                        Question {{ (active_draft.question_number or 0) + 1 }} of {{ active_draft.total_questions or 5 }}
+                    {% endif %}
+                    {% if active_draft.updated_at %}
+                        &middot; saved {{ active_draft.updated_at.strftime('%b %d, %Y %I:%M %p') }}
+                    {% endif %}
+                </p>
+            </div>
 
-    <br><br>
+            {% if active_draft.completed %}
+                <a href="/interview-results" class="button-link">View Results</a>
+            {% else %}
+                <a href="/mock-interview" class="button-link">Resume Interview</a>
+            {% endif %}
+        </div>
+    {% endif %}
 
-    <a href="/logout">
-        <button>Logout</button>
-    </a>
+    <div class="dashboard-actions">
+        <a href="/interview?new=1" class="button-link">
+            Start New Interview
+        </a>
+
+        <a href="/history" class="button-link secondary-link">
+            View History
+        </a>
+    </div>
+
+    <p class="muted-text">
+        Completed answers saved: {{ interview_count }}
+    </p>
 
 </div>
 
