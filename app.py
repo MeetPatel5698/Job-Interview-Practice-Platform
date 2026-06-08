@@ -1,4 +1,5 @@
 from datetime import datetime
+from types import SimpleNamespace
 from uuid import uuid4
 
 from flask import Flask, render_template, request, redirect, url_for, flash
@@ -36,7 +37,17 @@ db = SQLAlchemy(app)
 ROLE_OPTIONS = [
     'Software Developer',
     'Web Developer',
-    'Data Analyst'
+    'Data Analyst',
+    'Frontend Developer',
+    'Backend Developer',
+    'Full Stack Developer',
+    'DevOps Engineer',
+    'QA Tester',
+    'Cybersecurity Analyst',
+    'Cloud Engineer',
+    'Business Analyst',
+    'Project Coordinator',
+    'IT Support Specialist'
 ]
 
 RESUME_TEXT_EXTENSIONS = {'.txt', '.md', '.csv', '.pdf'}
@@ -97,6 +108,11 @@ class Interview(db.Model):
     session_id = db.Column(db.String(36))
 
     question_number = db.Column(db.Integer)
+
+    created_at = db.Column(
+        db.DateTime,
+        default=datetime.utcnow
+    )
 
     user_id = db.Column(
         db.Integer,
@@ -178,6 +194,7 @@ def ensure_database_schema():
         'answer_suggestion': 'ALTER TABLE interview ADD COLUMN answer_suggestion TEXT',
         'session_id': 'ALTER TABLE interview ADD COLUMN session_id VARCHAR(36)',
         'question_number': 'ALTER TABLE interview ADD COLUMN question_number INTEGER',
+        'created_at': 'ALTER TABLE interview ADD COLUMN created_at DATETIME',
     }
 
     for column_name, sql in interview_column_sql.items():
@@ -366,11 +383,143 @@ def normalize_total_questions(value):
     return total_questions
 
 
+def resolve_selected_role(form_data):
+
+    custom_role = form_data.get(
+        'custom_role',
+        ''
+    ).strip()
+
+    if custom_role:
+
+        return custom_role
+
+    return form_data.get(
+        'role',
+        ROLE_OPTIONS[0]
+    ).strip() or ROLE_OPTIONS[0]
+
+
+def custom_role_value(selected_role):
+
+    if selected_role and selected_role not in ROLE_OPTIONS:
+
+        return selected_role
+
+    return ''
+
+
 def get_session_answers(user_id, session_id):
 
     return Interview.query.filter_by(
         user_id=user_id,
         session_id=session_id
+    ).order_by(
+        Interview.question_number.asc(),
+        Interview.id.asc()
+    ).all()
+
+
+def build_history_sessions(interviews):
+
+    sessions = {}
+
+    for interview in interviews:
+
+        session_key = interview.session_id or f'legacy-{interview.id}'
+
+        if session_key not in sessions:
+
+            sessions[session_key] = {
+                'session_key': session_key,
+                'role': interview.role,
+                'answers': [],
+                'latest_id': interview.id,
+                'created_at': interview.created_at,
+            }
+
+        sessions[session_key]['answers'].append(interview)
+        sessions[session_key]['latest_id'] = max(
+            sessions[session_key]['latest_id'],
+            interview.id
+        )
+
+        if interview.created_at and (
+            not sessions[session_key]['created_at']
+            or interview.created_at > sessions[session_key]['created_at']
+        ):
+
+            sessions[session_key]['created_at'] = interview.created_at
+
+    session_list = []
+
+    for session in sessions.values():
+
+        answers = session['answers']
+        scored_answers = [
+            answer.score
+            for answer in answers
+            if answer.score is not None
+        ]
+        average_score = (
+            round(sum(scored_answers) / len(scored_answers), 1)
+            if scored_answers else 0
+        )
+
+        session['question_count'] = len(answers)
+        session['average_score'] = average_score
+        session_list.append(session)
+
+    return sorted(
+        session_list,
+        key=lambda session: session['latest_id'],
+        reverse=True
+    )
+
+
+def get_latest_completed_session(user_id):
+
+    interviews = Interview.query.filter_by(
+        user_id=user_id
+    ).order_by(
+        Interview.id.desc()
+    ).all()
+
+    sessions = build_history_sessions(
+        interviews
+    )
+
+    for session in sessions:
+
+        if session['question_count'] >= DEFAULT_SESSION_QUESTIONS:
+
+            return session
+
+    return None
+
+
+def get_history_session_answers(user_id, session_key):
+
+    if session_key.startswith('legacy-'):
+
+        try:
+
+            interview_id = int(
+                session_key.replace('legacy-', '', 1)
+            )
+
+        except ValueError:
+
+            return []
+
+        return Interview.query.filter_by(
+            id=interview_id,
+            user_id=user_id
+        ).all()
+
+    return Interview.query.filter_by(
+        user_id=user_id,
+        session_id=session_key
     ).order_by(
         Interview.question_number.asc(),
         Interview.id.asc()
@@ -391,6 +540,7 @@ def render_interview_setup_page(
         roles=ROLE_OPTIONS,
         session_lengths=SESSION_LENGTH_OPTIONS,
         selected_role=selected_role or ROLE_OPTIONS[0],
+        custom_role=custom_role_value(selected_role),
         role_description=role_description or '',
         resume_text=resume_text or '',
         resume_filename=resume_filename or '',
@@ -580,11 +730,28 @@ def dashboard():
         user_id=current_user.id
     ).count()
 
+    latest_completed_session = get_latest_completed_session(
+        current_user.id
+    )
+
+    show_latest_results = bool(latest_completed_session)
+
+    if (
+        active_draft
+        and active_draft.completed
+        and latest_completed_session
+        and active_draft.session_id == latest_completed_session['session_key']
+    ):
+
+        show_latest_results = False
+
     return render_template(
         'dashboard.html',
         user=current_user,
         active_draft=active_draft,
-        interview_count=interview_count
+        interview_count=interview_count,
+        latest_completed_session=latest_completed_session,
+        show_latest_results=show_latest_results
     )
 
 # =========================
@@ -618,9 +785,8 @@ def interview():
             total_questions=draft.total_questions if draft else DEFAULT_SESSION_QUESTIONS
         )
 
-    selected_role = request.form.get(
-        'role',
-        ROLE_OPTIONS[0]
+    selected_role = resolve_selected_role(
+        request.form
     )
 
     role_description = request.form.get(
@@ -1023,6 +1189,41 @@ def interview_results():
         answers
     )
 
+
+@app.route('/interview-results/<session_key>')
+@login_required
+def interview_results_session(session_key):
+
+    answers = get_history_session_answers(
+        current_user.id,
+        session_key
+    )
+
+    if not answers:
+
+        flash('Interview results not found')
+
+        return redirect(url_for('dashboard'))
+
+    draft = get_interview_draft(
+        current_user.id
+    )
+
+    if not draft or draft.session_id != session_key:
+
+        draft = SimpleNamespace(
+            role=answers[0].role,
+            role_description='',
+            resume_text='',
+            total_questions=len(answers),
+            session_id=session_key
+        )
+
+    return render_results_page(
+        draft,
+        answers
+    )
+
 # =========================
 # HISTORY
 # =========================
@@ -1033,11 +1234,52 @@ def history():
 
     interviews = Interview.query.filter_by(
         user_id=current_user.id
+    ).order_by(
+        Interview.id.desc()
     ).all()
+
+    sessions = build_history_sessions(
+        interviews
+    )
 
     return render_template(
         'history.html',
-        interviews=interviews
+        sessions=sessions
+    )
+
+
+@app.route('/history/<session_key>')
+@login_required
+def history_session(session_key):
+
+    answers = get_history_session_answers(
+        current_user.id,
+        session_key
+    )
+
+    if not answers:
+
+        flash('Interview session not found')
+
+        return redirect(url_for('history'))
+
+    scored_answers = [
+        answer.score
+        for answer in answers
+        if answer.score is not None
+    ]
+
+    average_score = (
+        round(sum(scored_answers) / len(scored_answers), 1)
+        if scored_answers else 0
+    )
+
+    return render_template(
+        'history_session.html',
+        session_key=session_key,
+        answers=answers,
+        role=answers[0].role,
+        average_score=average_score
     )
 
 # =========================

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Session History</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<div class="page-panel history-panel">
+
+    <div class="page-header">
+        <div>
+            <p class="eyebrow">Interview Session</p>
+            <h1>{{ role }}</h1>
+        </div>
+
+        <a href="/history" class="text-button">Back to History</a>
+    </div>
+
+    <div class="score-summary">
+        <div>
+            <span class="summary-label">Questions</span>
+            <strong>{{ answers|length }}</strong>
+        </div>
+
+        <div>
+            <span class="summary-label">Average Score</span>
+            <strong>{{ average_score }}/10</strong>
+        </div>
+
+        <div>
+            <span class="summary-label">Session</span>
+            <strong>{{ session_key[:8] }}</strong>
+        </div>
+    </div>
+
+    {% for answer in answers %}
+        <div class="history-item">
+            <div class="question-score-row">
+                <h3>Question {{ loop.index }}</h3>
+                <span class="score-pill">{{ answer.score }}/10</span>
+            </div>
+
+            <p><strong>Question:</strong> {{ answer.question }}</p>
+
+            <p><strong>Your Answer:</strong> {{ answer.answer }}</p>
+
+            <p><strong>Feedback:</strong> {{ answer.feedback }}</p>
+
+            {% if answer.improvements %}
+                <p><strong>Improve:</strong> {{ answer.improvements }}</p>
+            {% endif %}
+        </div>
+    {% endfor %}
+
+    <div class="dashboard-actions">
+        <a href="/interview-results/{{ session_key }}" class="button-link">
+            View Full Results
+        </a>
+
+        <a href="/history" class="button-link secondary-link">
+            Back to History
+        </a>
+    </div>
+
+</div>
+
+</body>
+</html>

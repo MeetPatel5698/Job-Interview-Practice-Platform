@@ -58,6 +58,24 @@
         </div>
     {% endif %}
 
+    {% if show_latest_results %}
+        <div class="resume-card">
+            <div>
+                <h2>Latest Results</h2>
+                <p>{{ latest_completed_session.role }}</p>
+                <p class="muted-text">
+                    {{ latest_completed_session.question_count }} questions
+                    &middot; average {{ latest_completed_session.average_score }}/10
+                    {% if latest_completed_session.created_at %}
+                        &middot; {{ latest_completed_session.created_at.strftime('%b %d, %Y %I:%M %p') }}
+                    {% endif %}
+                </p>
+            </div>
+
+            <a href="/interview-results/{{ latest_completed_session.session_key }}" class="button-link">View Results</a>
+        </div>
+    {% endif %}
+
     <div class="dashboard-actions">
         <a href="/interview?new=1" class="button-link">
             Start New Interview

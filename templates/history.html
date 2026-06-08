@@ -2,7 +2,6 @@
 <html>
 <head>
     <title>Interview History</title>
-
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -18,23 +17,35 @@
         <a href="/dashboard" class="text-button">Dashboard</a>
     </div>
 
-    {% for interview in interviews %}
+    {% with messages = get_flashed_messages() %}
+        {% if messages %}
+            {% for message in messages %}
+                <p class="flash-message">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
-        <div class="history-item">
-            <h3>{{ interview.role }}</h3>
+    {% for session in sessions %}
 
-            <p><strong>Question:</strong> {{ interview.question }}</p>
+        <div class="history-item session-history-item">
+            <div>
+                <h3>{{ session.role }}</h3>
 
-            <p><strong>Answer:</strong> {{ interview.answer }}</p>
+                <p class="muted-text">
+                    {{ session.question_count }} question{% if session.question_count != 1 %}s{% endif %}
+                    &middot; average {{ session.average_score }}/10
+                    {% if session.created_at %}
+                        &middot; {{ session.created_at.strftime('%b %d, %Y %I:%M %p') }}
+                    {% endif %}
+                </p>
+            </div>
 
-            <p><strong>Feedback:</strong> {{ interview.feedback }}</p>
-
-            <p><strong>Score:</strong> {{ interview.score }}/10</p>
+            <a href="/history/{{ session.session_key }}" class="button-link">View Session</a>
         </div>
 
     {% else %}
 
-        <p class="muted-text">No interview answers saved yet.</p>
+        <p class="muted-text">No interview sessions saved yet.</p>
 
     {% endfor %}
 

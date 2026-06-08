@@ -59,6 +59,13 @@
             {% endfor %}
         </select>
 
+        <label>Custom Role</label>
+
+        <input type="text"
+               name="custom_role"
+               value="{{ custom_role }}"
+               placeholder="Type a role if it is not listed above">
+
         <label>Role Description</label>
 
         <textarea name="role_description" rows="7" placeholder="Paste the job posting, responsibilities, or role requirements here">{{ role_description }}</textarea>

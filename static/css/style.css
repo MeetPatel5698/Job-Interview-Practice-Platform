@@ -222,6 +222,21 @@ body {
     padding: 16px;
 }
 
+.session-history-item {
+    align-items: center;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.session-history-item h3 {
+    margin: 0 0 6px;
+}
+
+.session-history-item .button-link {
+    flex: 0 0 auto;
+}
+
 .score-summary {
     background: #f6f9fc;
     border: 1px solid #dce3ec;
@@ -442,7 +457,8 @@ a:hover {
     }
 
     .page-header,
-    .resume-card {
+    .resume-card,
+    .session-history-item {
         align-items: stretch;
         flex-direction: column;
     }
